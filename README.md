@@ -29,7 +29,7 @@ Each hook takes a third argument which is an optional options hash.
 For example, to disabled the "siteRestrictUsers" feature you would:
 
 ```javascript
-// Example
+// Example: don't restrict site users
 function printJobHook(inputs, actions) {
   var options = {
     siteRestrictUsers: false
@@ -62,7 +62,7 @@ of color/bw rates. For example, suppose you want to offer the
 in a options object of:
 
 ```javascript
-// Example
+// Example: charge a couple groups discount rates
 var options = {
   discountGroups: {
     'CITES-ICS-Student-Staff': { color: 0.20, bw: 0.05 },
@@ -82,7 +82,7 @@ Displays a message to the user that their job has been held in
 a queue for printing.
 
 ```javascript
-// Example
+// Example: notify users their job is held
 var options = {
   notifyPrinted: true
 };
@@ -98,7 +98,7 @@ web clients. This can be any shared account, or the special
 value `'[personal]'`.
 
 ```javascript
-// Example
+// Example: change the account clientless users default to
 var options = {
   noClientAccount: 'CITES-ICS Staff Credit'
 };
@@ -127,7 +127,7 @@ all of your site groups. That way when a user is added to a
 site group they are automatically restricted at all other sites.
 
 ```javascript
-// Example
+// Example: change the restricted users group
 var options = {
   siteRestrictUsers: {
     restrictGroupName: 'CITES-ICS-RestrictedUsers'
@@ -169,7 +169,7 @@ It will replaces "%site%" in the string with the uppercase
 site name.
 
 ```javascript
-// Example
+// Example: change the restricted site name group
 var options = {
   siteRestrictUsers: {
     groupNameTemplate: 'CITES-ICS-RestrictedUsers-%site%'
