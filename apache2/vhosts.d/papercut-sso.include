@@ -1,0 +1,26 @@
+RewriteEngine on
+# Force HTTPS
+RewriteCond %{HTTPS} !=on
+RewriteRule ^/?(.*) https://%{SERVER_NAME}/$1 [R,L]
+
+# Make sure if PaperCut responds on its custom ports to rewrite that
+# to make sense for our front end server
+Header edit Location ^http://([^:]+):9191/(.*) http://$1/$2
+Header edit Location ^https://([^:]+):9192/(.*) https://$1/$2
+
+<Location />
+	# Require shibboleth for all access
+	AuthType shibboleth
+	ShibRequestSetting requireSession 1
+	Require valid-user 
+</Location>
+
+# Things that shibboleth should not try to authenticate
+<Location ~ "^/(admin|rpc)">
+	AuthType shibboleth
+	ShibRequestSetting requireSession 0
+	Require shibboleth
+</Location>
+
+Redirect /admin https://papercut.example.org:8443/admin
+

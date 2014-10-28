@@ -1,0 +1,53 @@
+# Server names this setup will answer to
+ServerName papercut.example.org
+
+ServerAdmin papercut@example.org
+
+ErrorLog /var/www/vhosts/papercut.example.org/logs/error_log
+CustomLog /var/www/vhosts/papercut.example.org/logs/access_log combined
+
+ProxyRequests off
+SSLProxyEngine on
+SSLProxyProtocol All -SSLv2 -SSLv3
+# Pass our host to PaperCut so it can repond properly
+ProxyPreserveHost on
+
+DocumentRoot "/var/www/vhosts/papercut.example.org/htdocs"
+<Directory "/var/www/vhosts/papercut.example.org/htdocs">
+	# Enable symlinks to enable mod_rewrite
+	Options FollowSymLinks
+	AllowOverride None
+
+	Order allow,deny
+	Allow from all
+
+	# Header PaperCut will inspect for the username, always set
+	# this to prevent the end user from playing tricks
+	RequestHeader set "SSO-USER" "%{uid}e" env=uid
+	RequestHeader unset "SSO-USER" env=!uid
+
+	RewriteEngine on
+	# Setup forwarding to HTTPS if thats how the request came in
+	RewriteCond %{HTTPS} =on
+	RewriteRule .* - [S=1,E=proxybase:https://papercut-app.example.org:9192]
+	RewriteRule .* - [E=proxybase:http://papercut-app.example.org:9191]
+
+	# Proxy to PaperCut
+	RewriteRule (.*) %{ENV:proxybase}/$1 [NE,P]
+</Directory>
+
+# These don't work inside <Directory>, so put them here
+ProxyPassReverse / http://papercut-app.example.org:9191/
+ProxyPassReverse / https://papercut-app.example.org:9192/
+
+<Location /Shibboleth.sso>
+	# Always handle requests to Shibboleth.sso locally
+	SetHandler shib
+	RewriteEngine off
+</Location>
+
+# Because PaperCut needs to know the client IP, these URLs
+# cannot be proxied
+# 2014-08-19: v14.2 handles SSO for the web client!
+#Redirect /client https://papercut-app.example.org:9192/client
+#Redirect /ios https://papercut-app.example.org:9192/ios

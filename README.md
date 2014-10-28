@@ -2,8 +2,41 @@ PaperCut
 ========
 
 This site collects some PaperCut utilities used by the CITES PaperCut
-implementation. For the moment, this just includes our
-"print-script-common.js" file.
+implementation. This includes our Shibboleth setup and our common
+print scripts.
+
+# Shibboleth
+
+We handle SSO for PaperCut by placing it behind a Linux Apache reverse proxy,
+and handle the Shibboleth portion at the proxy level. Included in this
+repository are the basic Apache configurations we use to make this work.
+
+For Shibboleth, the configuration only uses the `uid` attribute for a
+login name. The proxy expects it in the Apache environment as `uid`,
+so if your `attribute-map.xml` names it another way either change it there
+or change it in the proxy configuration.
+
+PaperCut needs to be configured as "WebAuth" with your proxy IP address
+and the name of the header the login information will be sent as. We use
+`SSO-USER`, although any name will work as long as you adjust the
+configuration. We've also only enabled SSO for the "user login". Admin
+and other logins continue to use the native PaperCut authentication.
+
+The logout URL will be `https://papercut.example.org/Shibboleth.sso/Logout`.
+You should also configure PaperCut with your proxy IP address for
+"Trusted Proxy Servers for Mobile Client access" if you intend to use
+SSO on the `/ios` and `/client` endpoints.
+
+The Apache configuration is setup to use "papercut.example.org" for
+the SSO endpoint, and "papercut-app.example.org" for the PaperCut
+Application Server. It runs SSO on ports 80 and 443, and standard user
+authentication on ports 8080 and 8443 (for admins or other users who
+can't use SSO).
+
+It also assumes that your SSL configuration is available as
+`/etc/apache2/vhosts.d/ssl.include`. If you don't have it there, or you
+define it in another way, you will need to adjust the `00papercut.conf`
+file.
 
 # print-script-common.js
 
