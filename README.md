@@ -179,3 +179,32 @@ var options = {
 
 Default: `'CITES-PaperCut-SiteUsers-%site%'`
 
+## checkAccountPrinterGroup
+
+*Only available in the after account selection hook.*
+
+PaperCut does not offer a way to limit shared accounts to
+only specific printers. This feature lets you do that through
+scripting and by adopting a naming convention for your shared
+accounts.
+
+This controls if the selected account is checked for a printer group
+prefix, and if so checks if the printer is in that group. Restricted
+shared accounts must be prefixed with `[Printer Group] `. For
+example, suppose you have a shared account for CITES-ICS Staff
+credit that should be restricted to the "Department:ICS" printers.
+You would name this shared account:
+
+    [Department:ICS] CITES-ICS Staff Credit
+
+When the script see the account name starts with `[.*] ` it will take
+that for a printer group and check that the printer is a member.
+
+```javascript
+// Example: disabled the check account printer group feature
+var options = {
+  checkAccountPrinterGroup: false
+};
+```
+
+Default: `true`
