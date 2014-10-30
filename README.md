@@ -30,7 +30,7 @@ SSO on the `/ios` and `/client` endpoints.
 The Apache configuration is setup to use "papercut.example.org" for
 the SSO endpoint, and "papercut-app.example.org" for the PaperCut
 Application Server. It runs SSO on ports 80 and 443, and standard user
-authentication on ports 8080 and 8443 (for admins or other users who
+authentication on ports 9191 and 9192 (for admins or other users who
 can't use SSO).
 
 It also assumes that your SSL configuration is available as
