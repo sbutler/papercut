@@ -1,10 +1,10 @@
 /*
- * Copyright (c) 2014 University of Illinois Board of Trustees
+ * Copyright (c) 2017 University of Illinois Board of Trustees
  * All rights reserved.
  * 
- * Developed by:   CITES-ICS
+ * Developed by:   Technology Services
  *                 University of Illinois at Urbana Champaign
- *                 http://www.cites.illinois.edu/ics
+ *                 https://techservices.illinois.edu/
  * 
  * ==== License ====
  * 
@@ -56,10 +56,20 @@
  * Each hook takes an optional third argument that configures options.
  * You can place your own scripts before or after the hooks.
  */
+/* jshint multistr: true */
 
 /*
  * ========== Utility Functions ==========
  */
+
+/*
+ * Checks to see if the client is running. This first will short circuit "no"
+ * for any webprint jobs.
+ */
+function common_isClientRunning( inputs )
+{
+  return !inputs.job.isWebPrintJob && inputs.client.isRunning;
+}
 
 /*
  * Get the type of an object. You would think that JavaScript's
@@ -138,6 +148,20 @@ function common_mergeOptions( tgt, src )
  *   Default: false
  *
  *
+ * - freeGroups: array of group names for users who should
+ *   get free printing. For example:
+ *
+ *     [ 'FreeUsers-Group1', 'FreeUsers-Group2' ]
+ *
+ *   If a user is in one of these groups then their cost will
+ *   be set to 0.00. You can set this to be false if you do not
+ *   want to offer any free printing.
+ *
+ *   Default: '__AUTO__'. Using a list of the printer's
+ *   "Department:%name%" groups, will build a list of
+ *   "CITES-PaperCut-FreeUsers-%name%" groups.
+ *
+ *
  * - notifyPrinted: display a message to the user when their
  *   job has been released for printing.
  *
@@ -203,12 +227,59 @@ function common_mergeOptions( tgt, src )
  *     "[Department:ICS] CITES-ICS Staff Credit".
  *
  *   Default: true
+ *
+ * 
+ * - externalAccount.choiceEnabled: whether to allow a choice
+ *   to bill to the external account or not. This will only be
+ *   considered if the printer is in the "Account:External"
+ *   group.
+ *
+ *   Default: true
+ *
+ *
+ * - externalAccount.choiceAlways: always popup the choice dialog,
+ *   even if the user has saved their previous response.
+ *
+ *   Default: false
+ *
+ *
+ * - externalAccount.choiceDefault: whether the external account
+ *   is the default choice or not. If true, then select the
+ *   external account by default or when the PCClient is not
+ *   running and the user has not made a choice already. This
+ *   will only be considered if the printer is in the
+ *   "Account:External" group.
+ *
+ *   Default: false
+ *
+ *
+ * - externalAccount.enableUserGroups: list of user groups that the
+ *   external account will be enabled for. This will only be
+ *   considered if the printer is in the "Account:External" group.
+ *
+ *   Default: [ 'CITES-PaperCut-ExternalAccountUsers' ]
+ *
+ *
+ * - externalAccount.personalAccounts: list of personal accounts
+ *   that will be charged when it has been determined we'll use
+ *   the external account. This list must include 'External'
+ *   in order to make external charging work.
+ *
+ *   Default: [ 'External' ]
  */
 
 function common_printJobHook( inputs, actions, options )
 {
   var _options = common_mergeOptions({
     discountGroups: false,
+    freeGroups: '__AUTO__',
+    externalAccount: {
+      choiceEnabled: true,
+      choiceAlways: false,
+      choiceDefault: true,
+      enableUserGroups: [ 'CITES-PaperCut-ExternalAccountUsers' ],
+      personalAccounts: [ 'External' ]
+    },
     notifyPrinted: false,
     noClientAccount: '[personal]',
     siteRestrictUsers: {
@@ -218,8 +289,13 @@ function common_printJobHook( inputs, actions, options )
     }
   }, options);
 
+  if (_options.externalAccount && common_externalAccount( inputs, actions, _options.externalAccount ))
+    return true;
+
   if (_options.noClientAccount)
     common_noClientAccount( inputs, actions, _options.noClientAccount );
+  if (_options.freeGroups)
+    common_freeGroups( inputs, actions, _options.freeGroups );
   if (_options.discountGroups)
     common_discountGroups( inputs, actions, _options.discountGroups );
 
@@ -235,6 +311,14 @@ function common_printJobAfterAccountSelectionHook( inputs, actions, options )
 {
   var _options = common_mergeOptions({
     discountGroups: false,
+    freeGroups: '__AUTO__',
+    externalAccount: {
+      choiceEnabled: true,
+      choiceAlways: false,
+      choiceDefault: true,
+      enableUserGroups: [ 'CITES-PaperCut-ExternalAccountUsers' ],
+      personalAccounts: [ 'External' ]
+    },
     checkAccountPrinterGroup: true,
     notifyPrinted: false,
     noClientAccount: '[personal]',
@@ -245,8 +329,13 @@ function common_printJobAfterAccountSelectionHook( inputs, actions, options )
     }
   }, options);
 
+  if (_options.externalAccount && common_externalAccount( inputs, actions, _options.externalAccount ))
+    return true;
+
   if (_options.noClientAccount)
     common_noClientAccount( inputs, actions, _options.noClientAccount );
+  if (_options.freeGroups)
+    common_freeGroups( inputs, actions, _options.freeGroups );
   if (_options.discountGroups)
     common_discountGroups( inputs, actions, _options.discountGroups );
 
@@ -317,7 +406,7 @@ function common_checkAccountPrinterGroup( inputs, actions )
 
   /* Restricted account selected, printer is not in the group.
    * Ask the client what they want to do about it. */
-  if (inputs.client.isRunning)
+  if (common_isClientRunning( inputs ))
   {
     actions.client.promptOK(
         "<html>The shared account <strong>\"" + acctName + "\"</strong> " +
@@ -387,6 +476,177 @@ function common_discountGroups( inputs, actions, groupRates )
 }
 
 /*
+ * Checks to see if the external account processing should be enabled, and optionally
+ * offers some choices to the user on whether they want to use it or not.
+ *
+ * This code bails early if the printer is not in the "Account:External" group or if
+ * the user is not in one of the proper user groups.
+ */
+function common_externalAccount( inputs, actions, options )
+{
+  if (!inputs.printer.isInGroup( 'Account:External' ))
+    return false;
+
+  for (var userGroupIdx = 0; userGroupIdx < options.enableUserGroups.length; userGroupIdx++)
+  {
+    var userGroup = options.enableUserGroups[ userGroupIdx ];
+    if (!inputs.user.isInGroup( userGroup ))
+      return false;
+  }
+
+  var defaultDisabled = null;
+  
+  if (options.choiceEnabled)
+    defaultDisabled = common_externalAccount_processChoice( inputs, actions, options );
+
+  if ((defaultDisabled && defaultDisabled.value) || (!defaultDisabled && options.choiceDefault))
+      actions.job.changePersonalAccountChargePriority( options.personalAccounts );
+
+  return false;
+}
+
+function common_externalAccount_processChoice( inputs, actions, options )
+{
+  var defaultDisabled = null;
+  var now = Date.now();
+
+  // Try to parse the stored property and set to null if it is badly formatted
+  // or expired
+  try
+  {
+    var tmpArr = inputs.user.getProperty( 'techsvc-default-disabled' ).split( '|' );
+    
+    defaultDisabled = {
+      value: tmpArr[ 0 ] && tmpArr[ 0 ] != 'false',
+      expires: parseFloat( tmpArr[ 1 ] )
+    };
+    
+    if (!defaultDisabled.expires || now >= defaultDisabled.expires)
+      defaultDisabled = null;
+  }
+  catch (ex)
+  {
+    defaultDisabled = null;
+  }
+  
+  if (((defaultDisabled === null) || options.choiceAlways) && common_isClientRunning( inputs ))
+  {
+    var bannerChecked = options.choiceDefault ? '' : 'checked';
+    var externalChecked = options.choiceDefault ? 'checked' : '';
+
+    var response = actions.client.promptForForm(
+      "<html>\
+      <p>You have an option for how you would like your print jobs to be billed. Please \
+      choose one of the following:</p> \
+      \
+      <table> \
+        <tr> \
+          <td><input name='personalAccount' value='external' type='radio' id='personalAccount-external' " + externalChecked + "></td> \
+          <td><strong><label for='personalAccount-external'>Bill Me Now (iCard Illini Cash)</label></strong></td> \
+        </tr> \
+        <tr> \
+          <td></td> \
+            <td>Your print jobs will be billed immediately using your iCard Illini Cash. \
+              If you do not have sufficient funds in your iCard Illini Cash \
+              then you will need to add funds before you can release your print job.</td> \
+        </tr> \
+        \
+        <tr> \
+          <td><input name='personalAccount' value='banner' type='radio' id='personalAccount-banner' " + bannerChecked + "></td> \
+          <td><strong><label for='personalAccount-banner'>Bill Me Later (Banner)</label></strong></td> \
+        </tr> \
+        <tr> \
+          <td></td> \
+          <td>Your print jobs will appear in your student bill at the end of \
+            the month. If you print less than $5 during a semester then you \
+            will not be billed until after the semester has ended.</td> \
+        </tr> \
+        \
+        <tr> \
+          <td></td> \
+          <td><strong><label for='rememberSeconds'>Remember This Choice:</label></strong><br> \
+            <select name='rememberSeconds' id='rememberSeconds'> \
+              <option value='0'>Ask Me Each Time</option> \
+              <option value='2592000'>1 Month</option> \
+              <option value='10368000'>4 Months</option> \
+            </select></td> \
+        </tr> \
+      </table> \
+      </html>",
+      {
+        hideJobDetails: true,
+        dialogTitle: "Print Job Billing"
+      }
+    );
+    
+    if (response != "TIMEOUT" && response != "CANCEL" && response.personalAccount)
+    {
+      defaultDisabled = {
+        value: response.personalAccount != 'banner',
+        expires: response.rememberSeconds * 1000 + now
+      };
+      
+      if (response.rememberSeconds || options.choiceAlways)
+      {
+        var tmpStr = [
+          defaultDisabled.value ? "true" : "false",
+          defaultDisabled.expires
+        ].join( '|' );
+        
+        actions.user.onCompletionSaveProperty( "techsvc-default-disabled", tmpStr, { saveWhenCancelled: true } );
+      }
+    }
+  }
+
+  return defaultDisabled;
+}
+
+/*
+ * Checks to see if any users should get free printing. Either a list of user group
+ * names is provided, or if '__AUTO__' then a list is built from the printer's
+ * "Department:%name%" groups. The cost is set to 0.00 if the user is in one of
+ * these groups.
+ */
+function common_freeGroups( inputs, actions, freeGroups )
+{
+  if (!inputs.job.isAnalysisComplete)
+    return;
+
+  // If we are using __AUTO__ then build the list of group names from the printer's groups
+  if (freeGroups == '__AUTO__')
+  {
+    freeGroups = [];
+    for (var printerGroupIdx = 0; printerGroupIdx < inputs.printer.groups.length; printerGroupIdx++)
+    {
+      var printerGroup = inputs.printer.groups[ printerGroupIdx ];
+
+      if (printerGroup.substr( 0, 11 ).toUpperCase() != 'DEPARTMENT:')
+        continue;
+
+      var printerDepartment = printerGroup.substr( 11 ).toUpperCase();
+      if (!printerDepartment)
+        continue;
+
+      freeGroups.push( 'CITES-PaperCut-FreeUsers-' + printerDepartment );
+    }
+  }
+
+  // Check the user's memberships
+  var freeUser = false;
+  for (var freeGroupIdx = 0; !freeUser && (freeGroupIdx < freeGroups.length); freeGroupIdx++)
+  {
+    var freeGroup = freeGroups[ freeGroupIdx ];
+
+    if (inputs.user.isInGroup( freeGroup ))
+      freeUser = true;
+  }
+
+  // Set cost to 0.00 if the user is a free user
+  if (freeUser)
+    actions.job.setCost( 0 );
+}
+
+/*
  * Checks to see if the client is running, and if it is not then select an account
  * for the user. This is useful for cases when the user must select an account but
  * their doing it from a machine without the PCClient or from a method that does not
@@ -394,7 +654,7 @@ function common_discountGroups( inputs, actions, groupRates )
  */
 function common_noClientAccount( inputs, actions, accountName )
 {
-  if (!(('selectedSharedAccount' in inputs.job) && inputs.job.selectedSharedAccount) && !inputs.client.isRunning)
+  if (!(('selectedSharedAccount' in inputs.job) && inputs.job.selectedSharedAccount) && !common_isClientRunning( inputs ))
   {
     if (accountName === '' || accountName == '[personal]')
       actions.job.chargeToPersonalAccount();
@@ -410,7 +670,7 @@ function common_noClientAccount( inputs, actions, accountName )
  */
 function common_notifyPrinted( inputs, actions )
 {
-  if (!inputs.client.isRunning)
+  if (!common_isClientRunning( inputs ))
     return false;
 
   if (!inputs.job.isAnalysisComplete)
@@ -464,7 +724,7 @@ function common_siteRestrictUsers( inputs, actions, options )
   // message. From this point on the function should
   // return true.
   actions.job.cancelAndLog( 'Site restricted user is not in group ' + siteGroupName );
-  if (inputs.client.isRunning)
+  if (common_isClientRunning( inputs ))
     actions.client.sendMessage(
         "PRINTING DENIED\n\n" +
         'You do not have permission to print on "' + inputs.printer.printerName + '".'
