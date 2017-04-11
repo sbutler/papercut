@@ -1,13 +1,13 @@
 /*
  * Copyright (c) 2017 University of Illinois Board of Trustees
  * All rights reserved.
- * 
+ *
  * Developed by:   Technology Services
  *                 University of Illinois at Urbana Champaign
  *                 https://techservices.illinois.edu/
- * 
+ *
  * ==== License ====
- * 
+ *
  * Permission is hereby granted, free of charge, to any person obtaining
  * a copy of this software and associated documentation files (the
  * "Software"), to deal with the Software without restriction, including
@@ -15,20 +15,20 @@
  * distribute, sublicense, and/or sell copies of the Software, and to
  * permit persons to whom the Software is furnished to do so, subject to
  * the following conditions:
- * 
+ *
  *     - Redistributions of source code must retain the above copyright
  *     notice, this list of conditions and the following disclaimers.
- * 
+ *
  *     - Redistributions in binary form must reproduce the above
  *     copyright notice, this list of conditions and the following
  *     disclaimers in the documentation and/or other materials provided
  *     with the distribution.
- * 
+ *
  *     Neither the names of CITES-ICS, University of Illinois at Urbana-
  *     Champaign, nor the names of its contributors may be used to
  *     endorse or promote products derived from this Software without
  *     specific prior written permission.
- * 
+ *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
  * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
  * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
@@ -36,9 +36,9 @@
  * ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF
  * CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
  * WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS WITH THE SOFTWARE.
- * 
+ *
  * ==== Description ====
- * 
+ *
  * print-script-common.js file for the CITES PaperCut instance. Should
  * be placed in "server/custom/print-script-common.js" for the PaperCut
  * Application Server. Each printer script will need to call two hooks:
@@ -182,7 +182,7 @@ function common_mergeOptions( tgt, src )
  *   single option or all of them. To disable the feature
  *   entirely, set this to false.
  *
- *   
+ *
  * - siteRestrictUsers.restrictGroupName: initial group to check
  *   to see if a user should be restricted to specific sites.
  *   This group should almost certainly be a nested group containing
@@ -228,7 +228,7 @@ function common_mergeOptions( tgt, src )
  *
  *   Default: true
  *
- * 
+ *
  * - externalAccount.choiceEnabled: whether to allow a choice
  *   to bill to the external account or not. This will only be
  *   considered if the printer is in the "Account:External"
@@ -495,7 +495,7 @@ function common_externalAccount( inputs, actions, options )
   }
 
   var defaultDisabled = null;
-  
+
   if (options.choiceEnabled)
     defaultDisabled = common_externalAccount_processChoice( inputs, actions, options );
 
@@ -515,12 +515,12 @@ function common_externalAccount_processChoice( inputs, actions, options )
   try
   {
     var tmpArr = inputs.user.getProperty( 'techsvc-default-disabled' ).split( '|' );
-    
+
     defaultDisabled = {
       value: tmpArr[ 0 ] && tmpArr[ 0 ] != 'false',
       expires: parseFloat( tmpArr[ 1 ] )
     };
-    
+
     if (!defaultDisabled.expires || now >= defaultDisabled.expires)
       defaultDisabled = null;
   }
@@ -528,7 +528,7 @@ function common_externalAccount_processChoice( inputs, actions, options )
   {
     defaultDisabled = null;
   }
-  
+
   if (((defaultDisabled === null) || options.choiceAlways) && common_isClientRunning( inputs ))
   {
     var bannerChecked = options.choiceDefault ? '' : 'checked';
@@ -578,21 +578,21 @@ function common_externalAccount_processChoice( inputs, actions, options )
         dialogTitle: "Print Job Billing"
       }
     );
-    
+
     if (response != "TIMEOUT" && response != "CANCEL" && response.personalAccount)
     {
       defaultDisabled = {
         value: response.personalAccount != 'banner',
         expires: response.rememberSeconds * 1000 + now
       };
-      
+
       if (response.rememberSeconds || options.choiceAlways)
       {
         var tmpStr = [
           defaultDisabled.value ? "true" : "false",
           defaultDisabled.expires
         ].join( '|' );
-        
+
         actions.user.onCompletionSaveProperty( "techsvc-default-disabled", tmpStr, { saveWhenCancelled: true } );
       }
     }
@@ -610,6 +610,11 @@ function common_externalAccount_processChoice( inputs, actions, options )
 function common_freeGroups( inputs, actions, freeGroups )
 {
   if (!inputs.job.isAnalysisComplete)
+    return;
+
+  // Exit if there is a shared account selected; that means the free user wanted
+  // to bill something specifically
+  if (inputs.job.selectedSharedAccountName)
     return;
 
   // If we are using __AUTO__ then build the list of group names from the printer's groups
