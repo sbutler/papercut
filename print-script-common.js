@@ -259,13 +259,19 @@ function common_mergeOptions( tgt, src )
  *
  *   Default: [ 'CITES-PaperCut-ExternalAccountUsers' ]
  *
+ * - personalAccounts.names: list of personal accounts that are allowed for
+ *   this printer. These accounts will have the highest priority when jobs are
+ *   charged to the personal account.
  *
- * - externalAccount.personalAccounts: list of personal accounts
- *   that will be charged when it has been determined we'll use
- *   the external account. This list must include 'External'
- *   in order to make external charging work.
+ *   Default: []
  *
- *   Default: [ 'External' ]
+ * - personalAccounts.addDefaults: add the default personal account for the
+ *   system. The default personal accounts enable external (Illini Cash;
+ *   Heartland) and Banner billing. If you specify "false" then these accounts
+ *   will not be added and the user will only be able to print using credits or
+ *   shared accounts.
+ *
+ *   Default: true
  */
 
 function common_printJobHook( inputs, actions, options )
@@ -292,7 +298,7 @@ function common_printJobHook( inputs, actions, options )
     }
   }, options);
 
-  var _personalAccounts = _options.personalAccounts.names;
+  var _personalAccounts = _options.personalAccounts.names || [];
 
   if (_options.externalAccount && _options.personalAccounts.addDefaults && common_externalAccount( inputs, actions, _options.externalAccount, _personalAccounts ))
     return true;
@@ -345,7 +351,7 @@ function common_printJobAfterAccountSelectionHook( inputs, actions, options )
     }
   }, options);
 
-  var _personalAccounts = _options.personalAccounts.names;
+  var _personalAccounts = _options.personalAccounts.names || [];
 
   if (_options.externalAccount && _options.personalAccounts.addDefaults && common_externalAccount( inputs, actions, _options.externalAccount, _personalAccounts ))
     return true;
