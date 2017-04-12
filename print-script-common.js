@@ -299,6 +299,7 @@ function common_printJobHook( inputs, actions, options )
   if (_options.noClientAccount)
     common_noClientAccount( inputs, actions, _options.noClientAccount );
 
+  actions.log.debug( "Personal accounts: " + _personalAccounts.join( "; " ) );
   if (_personalAccounts.length > 0)
     actions.job.changePersonalAccountChargePriority( _personalAccounts );
   else if (!inputs.job.selectedSharedAccountName) {
@@ -351,6 +352,7 @@ function common_printJobAfterAccountSelectionHook( inputs, actions, options )
   if (_options.noClientAccount)
     common_noClientAccount( inputs, actions, _options.noClientAccount );
 
+  actions.log.debug( "Personal accounts: " + _personalAccounts.join( "; " ) );
   if (_personalAccounts.length > 0)
     actions.job.changePersonalAccountChargePriority( _personalAccounts );
   else if (!inputs.job.selectedSharedAccountName) {
