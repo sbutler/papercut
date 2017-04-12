@@ -277,11 +277,14 @@ function common_printJobHook( inputs, actions, options )
       choiceEnabled: true,
       choiceAlways: false,
       choiceDefault: true,
-      enableUserGroups: [ 'CITES-PaperCut-ExternalAccountUsers' ],
-      personalAccounts: [ 'External' ]
+      enableUserGroups: [ 'CITES-PaperCut-ExternalAccountUsers' ]
     },
     notifyPrinted: false,
     noClientAccount: '[personal]',
+    personalAccounts: {
+      names: [],
+      addDefaults: true
+    },
     siteRestrictUsers: {
       groupNameTemplate: 'CITES-PaperCut-SiteUsers-%site%',
       printerNameRegexp: /^([a-z0-9]+)[_-]/i,
@@ -289,11 +292,20 @@ function common_printJobHook( inputs, actions, options )
     }
   }, options);
 
-  if (_options.externalAccount && common_externalAccount( inputs, actions, _options.externalAccount ))
-    return true;
+  var _personalAccounts = _options.personalAccounts.names;
 
+  if (_options.externalAccount && _options.personalAccounts.addDefaults && common_externalAccount( inputs, actions, _options.externalAccount, _personalAccounts ))
+    return true;
   if (_options.noClientAccount)
     common_noClientAccount( inputs, actions, _options.noClientAccount );
+
+  if (_personalAccounts.length > 0)
+    actions.job.changePersonalAccountChargePriority( _personalAccounts );
+  else if (!inputs.job.selectedSharedAccountName) {
+    actions.job.cancelAndLog( "No personal accounts available and no shared account selected. Illini Cash and Banner billing are not allowed for this user and printer." );
+    actions.client.sendMessage( "Job canceled. You do not have any personal accounts for this printer. Please select a shared account or talk to your local IT staff if you have questions." );
+  }
+
   if (_options.freeGroups)
     common_freeGroups( inputs, actions, _options.freeGroups );
   if (_options.discountGroups)
@@ -316,12 +328,15 @@ function common_printJobAfterAccountSelectionHook( inputs, actions, options )
       choiceEnabled: true,
       choiceAlways: false,
       choiceDefault: true,
-      enableUserGroups: [ 'CITES-PaperCut-ExternalAccountUsers' ],
-      personalAccounts: [ 'External' ]
+      enableUserGroups: [ 'CITES-PaperCut-ExternalAccountUsers' ]
     },
     checkAccountPrinterGroup: true,
     notifyPrinted: false,
     noClientAccount: '[personal]',
+    personalAccounts: {
+      names: [],
+      addDefaults: true
+    },
     siteRestrictUsers: {
       groupNameTemplate: 'CITES-PaperCut-SiteUsers-%site%',
       printerNameRegexp: /^([a-z0-9]+)[_-]/i,
@@ -329,11 +344,20 @@ function common_printJobAfterAccountSelectionHook( inputs, actions, options )
     }
   }, options);
 
-  if (_options.externalAccount && common_externalAccount( inputs, actions, _options.externalAccount ))
-    return true;
+  var _personalAccounts = _options.personalAccounts.names;
 
+  if (_options.externalAccount && _options.personalAccounts.addDefaults && common_externalAccount( inputs, actions, _options.externalAccount, _personalAccounts ))
+    return true;
   if (_options.noClientAccount)
     common_noClientAccount( inputs, actions, _options.noClientAccount );
+
+  if (_personalAccounts.length > 0)
+    actions.job.changePersonalAccountChargePriority( _personalAccounts );
+  else if (!inputs.job.selectedSharedAccountName) {
+    actions.job.cancelAndLog( "No personal accounts available and no shared account selected. Default billing accounts are not allowed for this user and printer." );
+    actions.client.sendMessage( "Job canceled. You do not have any personal accounts for this printer. Please select a shared account or talk to your local IT staff if you have questions." );
+  }
+
   if (_options.freeGroups)
     common_freeGroups( inputs, actions, _options.freeGroups );
   if (_options.discountGroups)
@@ -482,8 +506,11 @@ function common_discountGroups( inputs, actions, groupRates )
  * This code bails early if the printer is not in the "Account:External" group or if
  * the user is not in one of the proper user groups.
  */
-function common_externalAccount( inputs, actions, options )
+function common_externalAccount( inputs, actions, options, personalAccounts )
 {
+  personalAccounts.push( 'External' );
+  personalAccounts.push( 'Default' );
+
   if (!inputs.printer.isInGroup( 'Account:External' ))
     return false;
 
@@ -500,7 +527,7 @@ function common_externalAccount( inputs, actions, options )
     defaultDisabled = common_externalAccount_processChoice( inputs, actions, options );
 
   if ((defaultDisabled && defaultDisabled.value) || (!defaultDisabled && options.choiceDefault))
-      actions.job.changePersonalAccountChargePriority( options.personalAccounts );
+      personalAccounts.pop();
 
   return false;
 }
