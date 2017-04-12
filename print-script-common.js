@@ -305,13 +305,8 @@ function common_printJobHook( inputs, actions, options )
   if (_options.noClientAccount)
     common_noClientAccount( inputs, actions, _options.noClientAccount );
 
-  actions.log.debug( "Personal accounts: " + _personalAccounts.join( "; " ) );
-  if (_personalAccounts.length > 0)
-    actions.job.changePersonalAccountChargePriority( _personalAccounts );
-  else if (!inputs.job.selectedSharedAccountName) {
-    actions.job.cancelAndLog( "No personal accounts available and no shared account selected. Illini Cash and Banner billing are not allowed for this user and printer." );
-    actions.client.sendMessage( "Job canceled. You do not have any personal accounts for this printer. Please select a shared account or talk to your local IT staff if you have questions." );
-  }
+  if (common_personalAccounts( inputs, actions, _personalAccounts ))
+    return true;
 
   if (_options.freeGroups)
     common_freeGroups( inputs, actions, _options.freeGroups );
@@ -358,13 +353,8 @@ function common_printJobAfterAccountSelectionHook( inputs, actions, options )
   if (_options.noClientAccount)
     common_noClientAccount( inputs, actions, _options.noClientAccount );
 
-  actions.log.debug( "Personal accounts: " + _personalAccounts.join( "; " ) );
-  if (_personalAccounts.length > 0)
-    actions.job.changePersonalAccountChargePriority( _personalAccounts );
-  else if (!inputs.job.selectedSharedAccountName) {
-    actions.job.cancelAndLog( "No personal accounts available and no shared account selected. Default billing accounts are not allowed for this user and printer." );
-    actions.client.sendMessage( "Job canceled. You do not have any personal accounts for this printer. Please select a shared account or talk to your local IT staff if you have questions." );
-  }
+  if (common_personalAccounts( inputs, actions, _personalAccounts ))
+    return true;
 
   if (_options.freeGroups)
     common_freeGroups( inputs, actions, _options.freeGroups );
@@ -720,6 +710,34 @@ function common_notifyPrinted( inputs, actions )
       "The following job is queued for printing on " + inputs.job.printerName + ": " +
       inputs.job.documentName + " (cost: " + inputs.utils.formatCost( inputs.job.cost ) + ")."
   );
+
+  return false;
+}
+
+/*
+ * Set the personal accounts priorities. If there are no personal accounts
+ * available, and a shared account is not selected, then cancel the job and
+ * send an error message to the user.
+ *
+ * Returns true if futher processing should be stopped.
+ */
+function common_personalAccounts( inputs, actions, personalAccounts )
+{
+  actions.log.debug( "Personal accounts: " + personalAccounts.join( "; " ) );
+
+  if (personalAccounts.length > 0)
+    actions.job.changePersonalAccountChargePriority( personalAccounts );
+  else if (!inputs.job.selectedSharedAccountName)
+  {
+    actions.job.cancelAndLog( "No personal accounts available and no shared account selected. Default billing accounts are not allowed for this user and printer." );
+    if (common_isClientRunning( inputs ))
+      actions.client.sendMessage(
+        "PRINTING DENIED\n\n" +
+        "You do not have any personal accounts for this printer. Please select a shared account or talk to your local IT staff if you have questions."
+      );
+
+    return true;
+  }
 
   return false;
 }
