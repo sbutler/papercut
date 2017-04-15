@@ -643,7 +643,17 @@ function common_freeGroups( inputs, actions, freeGroups )
   // Exit if there is a shared account selected; that means the free user wanted
   // to bill something specifically
   if (inputs.job.selectedSharedAccountName)
+  {
+    // Recalculate the cost if it was zero previously b/c no shared account
+    // selection had happened yet.
+    if (inputs.job.cost === 0.0) {
+      actions.job.setCost(
+        inputs.job.calculateCostForPrinter( inputs.printer.printerName )
+      );
+    }
+
     return;
+  }
 
   // If we are using __AUTO__ then build the list of group names from the printer's groups
   if (freeGroups == '__AUTO__')
