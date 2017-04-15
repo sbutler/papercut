@@ -506,6 +506,7 @@ function common_discountGroups( inputs, actions, groupRates )
  */
 function common_externalAccount( inputs, actions, options, personalAccounts )
 {
+  personalAccounts = personalAccounts || [];
   personalAccounts.push( 'External' );
   personalAccounts.push( 'Default' );
 
