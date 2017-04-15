@@ -259,11 +259,13 @@ function common_mergeOptions( tgt, src )
  *
  *   Default: [ 'CITES-PaperCut-ExternalAccountUsers' ]
  *
+ *
  * - personalAccounts.names: list of personal accounts that are allowed for
  *   this printer. These accounts will have the highest priority when jobs are
  *   charged to the personal account.
  *
  *   Default: []
+ *
  *
  * - personalAccounts.addDefaults: add the default personal account for the
  *   system. The default personal accounts enable external (Illini Cash;
