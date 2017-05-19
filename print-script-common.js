@@ -63,6 +63,19 @@
  */
 
 /*
+ * Logs to the debug log, including some standard formatting, if debug logging
+ * is enabled.
+ */
+function common_debugLog( inputs, actions, message )
+/*{
+  actions.log.debug(
+    inputs.job.fullPrinterName + " " + inputs.job.username + "@" + inputs.job.clientIP + " - " +
+    message
+  );
+}*/
+{}
+
+/*
  * Checks to see if the client is running. This first will short circuit "no"
  * for any webprint jobs.
  */
@@ -278,6 +291,11 @@ function common_mergeOptions( tgt, src )
 
 function common_printJobHook( inputs, actions, options )
 {
+  common_debugLog( inputs, actions, "running common_printJobHook (" +
+    "isAnalysisComplete = " + (inputs.job.isAnalysisComplete ? "yes" : "no") +
+    "; isClientRunning = " + (common_isClientRunning( inputs ) ? "yes" : "no") +
+  ")" );
+
   var _options = common_mergeOptions({
     discountGroups: false,
     freeGroups: '__AUTO__',
@@ -307,8 +325,8 @@ function common_printJobHook( inputs, actions, options )
   if (_options.noClientAccount)
     common_noClientAccount( inputs, actions, _options.noClientAccount );
 
-  if (common_personalAccounts( inputs, actions, _personalAccounts ))
-    return true;
+  if (_personalAccounts.length > 0)
+    actions.job.changePersonalAccountChargePriority( _personalAccounts );
 
   if (_options.freeGroups)
     common_freeGroups( inputs, actions, _options.freeGroups );
@@ -325,37 +343,28 @@ function common_printJobHook( inputs, actions, options )
 
 function common_printJobAfterAccountSelectionHook( inputs, actions, options )
 {
+  common_debugLog( inputs, actions, "running common_printJobAfterAccountSelectionHook (" +
+    "isAnalysisComplete = " + (inputs.job.isAnalysisComplete ? "yes" : "no") +
+    "; isClientRunning = " + (common_isClientRunning( inputs ) ? "yes" : "no") +
+  ")" );
+
   var _options = common_mergeOptions({
     discountGroups: false,
     freeGroups: '__AUTO__',
-    externalAccount: {
-      choiceEnabled: true,
-      choiceAlways: false,
-      choiceDefault: true,
-      enableUserGroups: [ 'CITES-PaperCut-ExternalAccountUsers' ]
-    },
     checkAccountPrinterGroup: true,
-    notifyPrinted: false,
-    noClientAccount: '[personal]',
     personalAccounts: {
       names: [],
       addDefaults: true
-    },
-    siteRestrictUsers: {
-      groupNameTemplate: 'CITES-PaperCut-SiteUsers-%site%',
-      printerNameRegexp: /^([a-z0-9]+)[_-]/i,
-      restrictGroupName: 'CITES-PaperCut-SiteUsers'
     }
   }, options);
 
   var _personalAccounts = _options.personalAccounts.names || [];
+  if (_options.personalAccounts.addDefaults) {
+      // Add just one, we don't need to check for "Default"
+      _personalAccounts.push( 'External' );
+  }
 
-  if (_options.externalAccount && _options.personalAccounts.addDefaults && common_externalAccount( inputs, actions, _options.externalAccount, _personalAccounts ))
-    return true;
-  if (_options.noClientAccount)
-    common_noClientAccount( inputs, actions, _options.noClientAccount );
-
-  if (common_personalAccounts( inputs, actions, _personalAccounts ))
+  if (common_hasBillingAccounts( inputs, actions, _personalAccounts ))
     return true;
 
   if (_options.freeGroups)
@@ -363,11 +372,7 @@ function common_printJobAfterAccountSelectionHook( inputs, actions, options )
   if (_options.discountGroups)
     common_discountGroups( inputs, actions, _options.discountGroups );
 
-  if (_options.siteRestrictUsers && common_siteRestrictUsers( inputs, actions, _options.siteRestrictUsers ))
-    return true;
   if (_options.checkAccountPrinterGroup && common_checkAccountPrinterGroup( inputs, actions ))
-    return true;
-  if (_options.notifyPrinted && common_notifyPrinted( inputs, actions ))
     return true;
 
   return false;
@@ -396,11 +401,7 @@ function common_checkAccountPrinterGroup( inputs, actions )
   /* Don't do anything for personal accounts */
   if (!acctName)
   {
-    actions.log.debug(
-        inputs.job.fullPrinterName + " " +
-        inputs.job.username + "@" + inputs.job.clientIP + " - " +
-        "personal account selected"
-        );
+    common_debugLog( inputs, actions, "personal account selected" );
     return false;
   }
 
@@ -408,11 +409,7 @@ function common_checkAccountPrinterGroup( inputs, actions )
   /* Don't do anything is we aren't a restricted account */
   if (!acctParts)
   {
-    actions.log.debug(
-        inputs.job.fullPrinterName + " " +
-        inputs.job.username + "@" + inputs.job.clientIP + " - " +
-        "account not restricted (" + acctName + ")"
-        );
+    common_debugLog( inputs, actions, "account not restricted (" + acctName + ")" );
     return false;
   }
 
@@ -420,11 +417,7 @@ function common_checkAccountPrinterGroup( inputs, actions )
   /* If this printer is in the specified group, exit */
   if (inputs.printer.isInGroup( printerGroup ))
   {
-    actions.log.debug(
-        inputs.job.fullPrinterName + " " +
-        inputs.job.username + "@" + inputs.job.clientIP + " - " +
-        "printer is in the account group (" + acctName + ")"
-        );
+    common_debugLog( inputs, actions, "printer is in the account group (" + acctName + ")" );
     return false;
   }
 
@@ -471,18 +464,12 @@ function common_discountGroups( inputs, actions, groupRates )
       // Sanity check for groupRate.bw and groupRate.color
       if (typeof groupRate.bw != 'number')
       {
-        actions.log.debug(
-            inputs.printer.fullPrinterName + " " +
-            groupName + " - groupRate.bw is not a number"
-        );
+        common_debugLog( inputs, actions, groupName + " - groupRate.bw is not a number" );
         continue;
       }
       if (typeof groupRate.color != 'number')
       {
-        actions.log.debug(
-            inputs.printer.fullPrinterName + " " +
-            groupName + " - groupRate.color is not a number"
-        );
+        common_debugLog( inputs, actions, groupName + " - groupRate.color is not a number" );
         continue;
       }
 
@@ -496,7 +483,10 @@ function common_discountGroups( inputs, actions, groupRates )
   }
 
   if (jobCost != inputs.job.cost)
+  {
+    common_debugLog( inputs, actions, "found discount rate: " + jobCost );
     actions.job.setCost( jobCost );
+  }
 }
 
 /*
@@ -508,18 +498,26 @@ function common_discountGroups( inputs, actions, groupRates )
  */
 function common_externalAccount( inputs, actions, options, personalAccounts )
 {
+  common_debugLog( inputs, actions, "adding default accounts" );
+
   personalAccounts = personalAccounts || [];
   personalAccounts.push( 'External' );
   personalAccounts.push( 'Default' );
 
   if (!inputs.printer.isInGroup( 'Account:External' ))
+  {
+    common_debugLog( inputs, actions, "printer not in the Account:External group" );
     return false;
+  }
 
   for (var userGroupIdx = 0; userGroupIdx < options.enableUserGroups.length; userGroupIdx++)
   {
     var userGroup = options.enableUserGroups[ userGroupIdx ];
     if (!inputs.user.isInGroup( userGroup ))
+    {
+      common_debugLog( inputs, actions, "user is not in a required external account group: " + userGroup );
       return false;
+    }
   }
 
   var defaultDisabled = null;
@@ -528,7 +526,10 @@ function common_externalAccount( inputs, actions, options, personalAccounts )
     defaultDisabled = common_externalAccount_processChoice( inputs, actions, options );
 
   if ((defaultDisabled && defaultDisabled.value) || (!defaultDisabled && options.choiceDefault))
-      personalAccounts.pop();
+  {
+    common_debugLog( inputs, actions, "default account is disabled; removing" );
+    personalAccounts.pop();
+  }
 
   return false;
 }
@@ -647,46 +648,53 @@ function common_freeGroups( inputs, actions, freeGroups )
     // Recalculate the cost if it was zero previously b/c no shared account
     // selection had happened yet.
     if (inputs.job.cost === 0.0) {
+      common_debugLog( inputs, actions, "recalculating job cost since shared account is selected" );
       actions.job.setCost(
         inputs.job.calculateCostForPrinter( inputs.printer.printerName )
       );
     }
-
-    return;
   }
-
-  // If we are using __AUTO__ then build the list of group names from the printer's groups
-  if (freeGroups == '__AUTO__')
+  else if (inputs.job.cost > 0.0)
   {
-    freeGroups = [];
-    for (var printerGroupIdx = 0; printerGroupIdx < inputs.printer.groups.length; printerGroupIdx++)
+    // If we are using __AUTO__ then build the list of group names from the printer's groups
+    if (freeGroups == '__AUTO__')
     {
-      var printerGroup = inputs.printer.groups[ printerGroupIdx ];
+      freeGroups = [];
+      for (var printerGroupIdx = 0; printerGroupIdx < inputs.printer.groups.length; printerGroupIdx++)
+      {
+        var printerGroup = inputs.printer.groups[ printerGroupIdx ];
 
-      if (printerGroup.substr( 0, 11 ).toUpperCase() != 'DEPARTMENT:')
-        continue;
+        if (printerGroup.substr( 0, 11 ).toUpperCase() != 'DEPARTMENT:')
+          continue;
 
-      var printerDepartment = printerGroup.substr( 11 ).toUpperCase();
-      if (!printerDepartment)
-        continue;
+        var printerDepartment = printerGroup.substr( 11 ).toUpperCase();
+        if (!printerDepartment)
+          continue;
 
-      freeGroups.push( 'CITES-PaperCut-FreeUsers-' + printerDepartment );
+        var freeGroupName = 'CITES-PaperCut-FreeUsers-' + printerDepartment;
+
+        common_debugLog( inputs, actions, "adding free users group: " + freeGroupName );
+        freeGroups.push( freeGroupName );
+      }
+    }
+
+    // Check the user's memberships
+    var freeUser = false;
+    for (var freeGroupIdx = 0; !freeUser && (freeGroupIdx < freeGroups.length); freeGroupIdx++)
+    {
+      var freeGroup = freeGroups[ freeGroupIdx ];
+
+      if (inputs.user.isInGroup( freeGroup ))
+        freeUser = true;
+    }
+
+    // Set cost to 0.00 if the user is a free user
+    if (freeUser)
+    {
+      common_debugLog( inputs, actions, "user in a free group; setting cost to 0.0" );
+      actions.job.setCost( 0 );
     }
   }
-
-  // Check the user's memberships
-  var freeUser = false;
-  for (var freeGroupIdx = 0; !freeUser && (freeGroupIdx < freeGroups.length); freeGroupIdx++)
-  {
-    var freeGroup = freeGroups[ freeGroupIdx ];
-
-    if (inputs.user.isInGroup( freeGroup ))
-      freeUser = true;
-  }
-
-  // Set cost to 0.00 if the user is a free user
-  if (freeUser)
-    actions.job.setCost( 0 );
 }
 
 /*
@@ -697,12 +705,18 @@ function common_freeGroups( inputs, actions, freeGroups )
  */
 function common_noClientAccount( inputs, actions, accountName )
 {
-  if (!(('selectedSharedAccount' in inputs.job) && inputs.job.selectedSharedAccount) && !common_isClientRunning( inputs ))
+  if (!('selectedSharedAccount' in inputs.job && inputs.job.selectedSharedAccount) && !common_isClientRunning( inputs ))
   {
     if (accountName === '' || accountName == '[personal]')
+    {
+      common_debugLog( inputs, actions, "no client running; setting personal account" );
       actions.job.chargeToPersonalAccount();
+    }
     else
+    {
+      common_debugLog( inputs, actions, "no client running; setting shared account " + accountName );
       actions.job.chargeToSharedAccount( accountName );
+    }
   }
 }
 
@@ -728,19 +742,24 @@ function common_notifyPrinted( inputs, actions )
 }
 
 /*
- * Set the personal accounts priorities. If there are no personal accounts
+ * Check that a user has an account to bill to. If there are no personal accounts
  * available, and a shared account is not selected, then cancel the job and
  * send an error message to the user.
  *
  * Returns true if futher processing should be stopped.
  */
-function common_personalAccounts( inputs, actions, personalAccounts )
+function common_hasBillingAccounts( inputs, actions, personalAccounts )
 {
-  actions.log.debug( "Personal accounts: " + personalAccounts.join( "; " ) );
+  if (!inputs.job.isAnalysisComplete)
+    return false;
 
-  if (personalAccounts.length > 0)
-    actions.job.changePersonalAccountChargePriority( personalAccounts );
-  else if (!inputs.job.selectedSharedAccountName)
+  common_debugLog( inputs, actions, "personal accounts: " + personalAccounts.join( "; " ) );
+
+  /* Only run if...
+     1. The job has a cost
+     2. The user has no personal accounts available (credit or default)
+     3. There is no selected shared account */
+  if ((inputs.job.cost > 0.0) && (personalAccounts.length <= 0) && !inputs.job.selectedSharedAccountName)
   {
     actions.job.cancelAndLog( "No personal accounts available and no shared account selected. Default billing accounts are not allowed for this user and printer." );
     if (common_isClientRunning( inputs ))
@@ -776,19 +795,27 @@ function common_personalAccounts( inputs, actions, personalAccounts )
 function common_siteRestrictUsers( inputs, actions, options )
 {
   if (!inputs.user.isInGroup( options.restrictGroupName ))
+  {
+    common_debugLog( inputs, actions, "user is not in the restricted group: " + options.restrictGroupName );
     return false;
+  }
 
   // Try to take the site name from the first part of the
   // printer name
   var printerNameParts = inputs.printer.printerName.match( options.printerNameRegexp );
   // Check that we got a site name from this printer name
   if (!printerNameParts || !printerNameParts[ 1 ])
+  {
+    common_debugLog( inputs, actions, "unable to get the site name from the printer name: " + options.printerNameRegexp );
     return false;
+  }
 
   var siteGroupName = options.groupNameTemplate.replace( '%site%', printerNameParts[ 1 ].toUpperCase() );
   if (inputs.user.isInGroup( siteGroupName ))
-    // User is fine, exit
+  {
+    common_debugLog( inputs, actions, "user is in the site group: " + siteGroupName );
     return false;
+  }
 
   // User is a site restricted user but is not in this
   // site group. Cancel the job and send an error
