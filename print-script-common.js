@@ -306,7 +306,6 @@ function common_printJobHook( inputs, actions, options )
       enableUserGroups: [ 'CITES-PaperCut-ExternalAccountUsers' ]
     },
     notifyPrinted: false,
-    noClientAccount: '[personal]',
     personalAccounts: {
       names: [],
       addDefaults: true
@@ -322,9 +321,6 @@ function common_printJobHook( inputs, actions, options )
 
   if (_options.externalAccount && _options.personalAccounts.addDefaults && common_externalAccount( inputs, actions, _options.externalAccount, _personalAccounts ))
     return true;
-  if (_options.noClientAccount)
-    common_noClientAccount( inputs, actions, _options.noClientAccount );
-
   if (_personalAccounts.length > 0)
     actions.job.changePersonalAccountChargePriority( _personalAccounts );
 
@@ -346,12 +342,14 @@ function common_printJobAfterAccountSelectionHook( inputs, actions, options )
   common_debugLog( inputs, actions, "running common_printJobAfterAccountSelectionHook (" +
     "isAnalysisComplete = " + (inputs.job.isAnalysisComplete ? "yes" : "no") +
     "; isClientRunning = " + (common_isClientRunning( inputs ) ? "yes" : "no") +
+    "; sharedAccount = " + inputs.job.selectedSharedAccountName +
   ")" );
 
   var _options = common_mergeOptions({
     discountGroups: false,
     freeGroups: '__AUTO__',
     checkAccountPrinterGroup: true,
+    noClientAccount: '[personal]',
     personalAccounts: {
       names: [],
       addDefaults: true
@@ -363,6 +361,9 @@ function common_printJobAfterAccountSelectionHook( inputs, actions, options )
       // Add just one, we don't need to check for "Default"
       _personalAccounts.push( 'External' );
   }
+
+  if (_options.noClientAccount)
+    common_noClientAccount( inputs, actions, _options.noClientAccount );
 
   if (common_hasBillingAccounts( inputs, actions, _personalAccounts ))
     return true;
@@ -705,7 +706,7 @@ function common_freeGroups( inputs, actions, freeGroups )
  */
 function common_noClientAccount( inputs, actions, accountName )
 {
-  if (!('selectedSharedAccount' in inputs.job && inputs.job.selectedSharedAccount) && !common_isClientRunning( inputs ))
+  if (!inputs.job.selectedSharedAccountName && !common_isClientRunning( inputs ))
   {
     if (accountName === '' || accountName == '[personal]')
     {
