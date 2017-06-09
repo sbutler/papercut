@@ -486,6 +486,7 @@ function common_discountGroups( inputs, actions, groupRates )
   if (jobCost != inputs.job.cost)
   {
     common_debugLog( inputs, actions, "found discount rate: " + jobCost );
+    actions.job.addComment( "Original cost (discounted): " + inputs.utils.formatCost( inputs.job.cost ) );
     actions.job.setCost( jobCost );
   }
 }
@@ -690,9 +691,10 @@ function common_freeGroups( inputs, actions, freeGroups )
     }
 
     // Set cost to 0.00 if the user is a free user
-    if (freeUser)
+    if (freeUser && (inputs.job.cost !== 0.0))
     {
       common_debugLog( inputs, actions, "user in a free group; setting cost to 0.0" );
+      actions.job.addComment( "Original cost (free): " + inputs.utils.formatCost( inputs.job.cost ) );
       actions.job.setCost( 0 );
     }
   }
