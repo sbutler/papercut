@@ -306,6 +306,7 @@ function common_printJobHook( inputs, actions, options )
       enableUserGroups: [ 'CITES-PaperCut-ExternalAccountUsers' ]
     },
     notifyPrinted: false,
+    noClientAccount: '[personal]',
     personalAccounts: {
       names: [],
       addDefaults: true
@@ -323,6 +324,9 @@ function common_printJobHook( inputs, actions, options )
     return true;
   if (_personalAccounts.length > 0)
     actions.job.changePersonalAccountChargePriority( _personalAccounts );
+
+  if (_options.noClientAccount)
+    common_noClientAccount( inputs, actions, _options.noClientAccount );
 
   if (_options.freeGroups)
     common_freeGroups( inputs, actions, _options.freeGroups );
@@ -349,7 +353,6 @@ function common_printJobAfterAccountSelectionHook( inputs, actions, options )
     discountGroups: false,
     freeGroups: '__AUTO__',
     checkAccountPrinterGroup: true,
-    noClientAccount: '[personal]',
     personalAccounts: {
       names: [],
       addDefaults: true
@@ -365,9 +368,6 @@ function common_printJobAfterAccountSelectionHook( inputs, actions, options )
     else
       _personalAccounts.push( 'Default' );
   }
-
-  if (_options.noClientAccount)
-    common_noClientAccount( inputs, actions, _options.noClientAccount );
 
   if (common_hasBillingAccounts( inputs, actions, _personalAccounts ))
     return true;
@@ -720,7 +720,7 @@ function common_freeGroups( inputs, actions, freeGroups )
  */
 function common_noClientAccount( inputs, actions, accountName )
 {
-  if (!inputs.job.selectedSharedAccountName && !common_isClientRunning( inputs ))
+  if (!common_isClientRunning( inputs ) && !('selectedSharedAccountName' in inputs.job && inputs.job.selectedSharedAccountName))
   {
     if (accountName === '' || accountName == '[personal]')
     {
