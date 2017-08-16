@@ -357,9 +357,13 @@ function common_printJobAfterAccountSelectionHook( inputs, actions, options )
   }, options);
 
   var _personalAccounts = _options.personalAccounts.names || [];
-  if (_options.personalAccounts.addDefaults) {
-      // Add just one, we don't need to check for "Default"
+  if (_options.personalAccounts.addDefaults)
+  {
+    // Add just one, we don't need to check for "Default"
+    if (inputs.printer.isInGroup( 'Account:External' ))
       _personalAccounts.push( 'External' );
+    else
+      _personalAccounts.push( 'Default' );
   }
 
   if (_options.noClientAccount)
@@ -503,13 +507,21 @@ function common_externalAccount( inputs, actions, options, personalAccounts )
   common_debugLog( inputs, actions, "adding default accounts" );
 
   personalAccounts = personalAccounts || [];
-  personalAccounts.push( 'External' );
-  personalAccounts.push( 'Default' );
 
   if (!inputs.printer.isInGroup( 'Account:External' ))
   {
     common_debugLog( inputs, actions, "printer not in the Account:External group" );
+
+    // No external account, so just add the default
+    personalAccounts.push( 'Default' );
     return false;
+  }
+  else
+  {
+    // We are going to do the external account logic. Add both, and remove the
+    // "Default" one later if we need to.
+    personalAccounts.push( 'External' );
+    personalAccounts.push( 'Default' );
   }
 
   for (var userGroupIdx = 0; userGroupIdx < options.enableUserGroups.length; userGroupIdx++)
