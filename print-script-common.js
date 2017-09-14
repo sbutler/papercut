@@ -805,7 +805,8 @@ function common_notifyPrinted( inputs, actions )
  */
 function common_hasBillingAccounts( inputs, actions, personalAccounts )
 {
-  if (!inputs.job.isAnalysisComplete)
+  // Don't run at all if we have a selected shared account or analysis is not complete.
+  if (!inputs.job.isAnalysisComplete || inputs.job.selectedSharedAccountName)
     return false;
 
   common_debugLog( inputs, actions, "personal accounts: " + personalAccounts.join( "; " ) );
@@ -814,7 +815,7 @@ function common_hasBillingAccounts( inputs, actions, personalAccounts )
      1. The job has a cost
      2. The user has no personal accounts available (credit or default)
      3. There is no selected shared account */
-  if ((inputs.job.cost > 0.0) && (personalAccounts.length <= 0) && !inputs.job.selectedSharedAccountName)
+  if ((inputs.job.cost > 0.0) && (personalAccounts.length <= 0))
   {
     actions.job.cancelAndLog( "No personal accounts available and no shared account selected. Default billing accounts are not allowed for this user and printer." );
     if (common_isClientRunning( inputs ))
