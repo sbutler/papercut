@@ -99,6 +99,7 @@ function common_getExternalBalances( inputs, actions )
     var creditSourceManager = new Packages.biz.papercut.pcng.service.impl.CreditSourceManagerImpl();
 
     var externalBalances = creditSourceManager.lookUpExternalUserBalances( userObj );
+    var keySet = externalBalances.keySet()
     var keyArray = keySet.toArray(java.lang.reflect.Array.newInstance(java.lang.String, keySet.size()));
 
     for (var keyIdx = 0; keyIdx < keyArray.length; ++keyIdx)
