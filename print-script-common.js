@@ -86,6 +86,45 @@ function common_isClientRunning( inputs )
 }
 
 /*
+ * Attempt to get the Heartland balance for the user. This code has been
+ * provided by PaperCut developers.
+ *
+ * Returns the balance, or null if a balance could not be retrieved.
+ */
+function common_getExternalBalances( inputs, actions )
+{
+  var result = {};
+  try {
+    var userObj = new Packages.biz.papercut.pcng.domain.User( inputs.job.username );
+    var creditSourceManager = new Packages.biz.papercut.pcng.service.impl.CreditSourceManagerImpl();
+
+    var externalBalances = creditSourceManager.lookUpExternalUserBalances( userObj );
+    var keyArray = keySet.toArray(java.lang.reflect.Array.newInstance(java.lang.String, keySet.size()));
+
+    for (var keyIdx = 0; keyIdx < keyArray.length; ++keyIdx)
+    {
+      var key = keyArray[keyIdx];
+
+      result[key] = externalBalances.get(key);
+      common_debugLog( inputs, actions, "external balance: " + key + " = " + result[key] );
+    }
+  } catch (e) {
+    common_debugLog( inputs, actions, "external balance lookup error: " + e);
+    result = null;
+  }
+
+  return result;
+}
+function common_getHeartlandBalance( inputs, actions )
+{
+  var balances = common_getExternalBalances( inputs, actions );
+  if (balances && 'iCard Illini Cash' in balances)
+    return balances['iCard Illini Cash'];
+  else
+    return null;
+}
+
+/*
  * Get the type of an object. You would think that JavaScript's
  * typeof operator would be enough, but see:
  *
