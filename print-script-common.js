@@ -306,6 +306,14 @@ function common_mergeOptions( tgt, src )
  *   Default: false
  *
  *
+ * - externalAccount.checkBalance: whether to check the balance of the
+ *   external account or not when a job is sent. If true then this will
+ *   display a message to the user when they do not have enough credits. This
+ *   takes into account other personal credit accounts they might have.
+ *
+ *   Default: true
+ *
+ *
  * - externalAccount.enableUserGroups: list of user groups that the
  *   external account will be enabled for. This will only be
  *   considered if the printer is in the "Account:External" group.
@@ -339,31 +347,14 @@ function common_printJobHook( inputs, actions, options )
   var _options = common_mergeOptions({
     discountGroups: false,
     freeGroups: '__AUTO__',
-    externalAccount: {
-      choiceEnabled: true,
-      choiceAlways: false,
-      choiceDefault: true,
-      enableUserGroups: [ 'CITES-PaperCut-ExternalAccountUsers' ]
-    },
     notifyPrinted: false,
     noClientAccount: '[personal]',
-    personalAccounts: {
-      names: [],
-      addDefaults: true
-    },
     siteRestrictUsers: {
       groupNameTemplate: 'CITES-PaperCut-SiteUsers-%site%',
       printerNameRegexp: /^([a-z0-9]+)[_-]/i,
       restrictGroupName: 'CITES-PaperCut-SiteUsers'
     }
   }, options);
-
-  var _personalAccounts = _options.personalAccounts.names || [];
-
-  if (_options.externalAccount && _options.personalAccounts.addDefaults && common_externalAccount( inputs, actions, _options.externalAccount, _personalAccounts ))
-    return true;
-  if (_personalAccounts.length > 0)
-    actions.job.changePersonalAccountChargePriority( _personalAccounts );
 
   if (_options.noClientAccount)
     common_noClientAccount( inputs, actions, _options.noClientAccount );
@@ -393,6 +384,13 @@ function common_printJobAfterAccountSelectionHook( inputs, actions, options )
     discountGroups: false,
     freeGroups: '__AUTO__',
     checkAccountPrinterGroup: true,
+    externalAccount: {
+      choiceEnabled: true,
+      choiceAlways: false,
+      choiceDefault: true,
+      checkBalance: true,
+      enableUserGroups: [ 'CITES-PaperCut-ExternalAccountUsers' ]
+    },
     personalAccounts: {
       names: [],
       addDefaults: true
@@ -400,14 +398,11 @@ function common_printJobAfterAccountSelectionHook( inputs, actions, options )
   }, options);
 
   var _personalAccounts = _options.personalAccounts.names || [];
-  if (_options.personalAccounts.addDefaults)
-  {
-    // Add just one, we don't need to check for "Default"
-    if (inputs.printer.isInGroup( 'Account:External' ))
-      _personalAccounts.push( 'External' );
-    else
-      _personalAccounts.push( 'Default' );
-  }
+
+  if (_options.externalAccount && _options.personalAccounts.addDefaults && common_externalAccount( inputs, actions, _options.externalAccount, _personalAccounts ))
+    return true;
+  if (_personalAccounts.length > 0)
+    actions.job.changePersonalAccountChargePriority( _personalAccounts );
 
   if (common_hasBillingAccounts( inputs, actions, _personalAccounts ))
     return true;
@@ -419,6 +414,9 @@ function common_printJobAfterAccountSelectionHook( inputs, actions, options )
 
   if (_options.checkAccountPrinterGroup && common_checkAccountPrinterGroup( inputs, actions ))
     return true;
+
+  if (_options.externalAccount && _options.externalAccount.checkBalance)
+    common_checkHeartlandBalance( inputs, actions, personalAccounts );
 
   return false;
 }
@@ -544,6 +542,11 @@ function common_discountGroups( inputs, actions, groupRates )
  */
 function common_externalAccount( inputs, actions, options, personalAccounts )
 {
+  // If there is a selected shared account then no need for the external account
+  // logic
+  if (inputs.job.selectedSharedAccountName)
+    return false;
+
   common_debugLog( inputs, actions, "adding default accounts" );
 
   personalAccounts = personalAccounts || [];
@@ -885,4 +888,69 @@ function common_siteRestrictUsers( inputs, actions, options )
     );
 
   return true;
+}
+
+/*
+ * Check that the user has enough funds in their Heartland account to print
+ * this job. If not then display a message where they can add more funds, and
+ * how much needs to be added.
+ *
+ * This will not display under any of these conditions:
+ *
+ * - client is not running
+ * - a shared account is selected
+ * - the user does not have the External account enabled
+ * - the user does have the Default account enabled
+ * - the user has sufficient credit in one of their other personal account
+ * - the user has sufficient credit in their heartland account
+ */
+function common_checkHeartlandBalance( inputs, actions, personalAccounts )
+{
+  if (!common_isClientRunning( inputs ))
+    return false;
+
+  // Don't run at all if we have a selected shared account or analysis is not complete.
+  if (!inputs.job.isAnalysisComplete || inputs.job.selectedSharedAccountName)
+    return false;
+
+  // Don't run if...
+  // 1. We don't have the External account. Heartland wouldn't help anyway.
+  // 2. We do have the Default account. Heartland may be consulted, but we have a declining balance.
+  if (!('External' in personalAccounts) || ('Default' in personalAccounts))
+    return false;
+
+  var balance = 0;
+  for (var accountName in personalAccounts)
+    balance += inputs.user.getBalance( accountName );
+  common_debugLog( inputs, actions, "credit account balance: " + balance );
+
+  var heartlandBalance = common_getHeartlandBalance( inputs, actions );
+  if (heartlandBalance)
+  {
+    common_debugLog( inputs, actions, "heartland account balance: " + heartlandBalance );
+    balance += heartlandBalance;
+  }
+
+  common_debugLog( inputs, actions, "total available balance: " + balance );
+  if (inputs.job.cost > balance)
+  {
+    var costDiff = inputs.job.cost - balance;
+    var costDiffDisplay = inputs.utils.formatBalance( costDiff );
+
+    common_debugLog( inputs, actions, "additional credits required: " + costDiff );
+    actions.client.promptOK(
+      "<html>\
+      <p>Your account does not have enought credits. You need an additional \
+      " + costDiffDisplay + " in your account before you release this job.</p>\
+      \
+      <p>You can add credits to your account at <a href=\"https://go.illinois.edu/PrintingCredits\">go.illinois.edu/PrintingCredits</a>\
+      </html>",
+      {
+        dialogTitle: "Insufficient Credits",
+        questionID: "edu.illinois.ics.papercut.InsufficientCreditsPrompt"
+      }
+    );
+  }
+
+  return false;
 }
