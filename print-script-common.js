@@ -67,13 +67,14 @@
  * is enabled.
  */
 function common_debugLog( inputs, actions, message )
-/*{
+{
+/*
   actions.log.debug(
     inputs.job.fullPrinterName + " " + inputs.job.username + "@" + inputs.job.clientIP + " - " +
     message
   );
-}*/
-{}
+*/
+}
 
 /*
  * Checks to see if the client is running. This first will short circuit "no"
