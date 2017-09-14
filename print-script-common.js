@@ -416,7 +416,7 @@ function common_printJobAfterAccountSelectionHook( inputs, actions, options )
     return true;
 
   if (_options.externalAccount && _options.externalAccount.checkBalance)
-    common_checkHeartlandBalance( inputs, actions, personalAccounts );
+    common_checkHeartlandBalance( inputs, actions, _personalAccounts );
 
   return false;
 }
