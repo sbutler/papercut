@@ -917,12 +917,22 @@ function common_checkHeartlandBalance( inputs, actions, personalAccounts )
   // Don't run if...
   // 1. We don't have the External account. Heartland wouldn't help anyway.
   // 2. We do have the Default account. Heartland may be consulted, but we have a declining balance.
-  if (!('External' in personalAccounts) || ('Default' in personalAccounts))
+  common_debugLog( inputs, actions, "check balance personal accounts: " + personalAccounts.join( "; " ) );
+  if ((personalAccounts.indexOf( 'External' ) == -1) || (personalAccounts.indexOf( 'Default' ) != -1))
     return false;
 
   var balance = 0;
-  for (var accountName in personalAccounts)
-    balance += inputs.user.getBalance( accountName );
+  for (var accountIdx = 0; accountIdx < personalAccounts.length; ++accountIdx)
+  {
+    try
+    {
+      balance += inputs.user.getBalance( personalAccounts[ accountIdx ] );
+    }
+    catch (balanceEx)
+    {
+      actions.log.error( "Cannot get a balance for " + personalAccounts[ accountIdx ] + ": " + balanceEx );
+    }
+  }
   common_debugLog( inputs, actions, "credit account balance: " + balance );
 
   var heartlandBalance = common_getHeartlandBalance( inputs, actions );
