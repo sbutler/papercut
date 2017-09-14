@@ -951,13 +951,14 @@ function common_checkHeartlandBalance( inputs, actions, personalAccounts )
     common_debugLog( inputs, actions, "additional credits required: " + costDiff );
     actions.client.promptOK(
       "<html>\
-      <p>Your account does not have enought credits. You need an additional \
-      " + costDiffDisplay + " in your account before you release this job.</p>\
+      <p>You need an additional <strong>" + costDiffDisplay + "</strong>\
+      in your Illini Cash account before you can release this job.</p>\
       \
       <p>You can add credits to your account at <a href=\"https://go.illinois.edu/PrintingCredits\">go.illinois.edu/PrintingCredits</a>\
       </html>",
       {
         dialogTitle: "Insufficient Credits",
+        dialogDesc: "You do not have enough credits to print this job.",
         questionID: "edu.illinois.ics.papercut.InsufficientCreditsPrompt"
       }
     );
