@@ -640,7 +640,7 @@ function common_externalAccount_processChoice( inputs, actions, options )
         \
         <tr> \
           <td><input name='personalAccount' value='banner' type='radio' id='personalAccount-banner' " + bannerChecked + "></td> \
-          <td><strong><label for='personalAccount-banner'>Bill Me Later (Banner)</label></strong></td> \
+          <td><strong><label for='personalAccount-banner'>Bill Me Later (Student Account)</label></strong></td> \
         </tr> \
         <tr> \
           <td></td> \
@@ -954,7 +954,7 @@ function common_checkHeartlandBalance( inputs, actions, personalAccounts )
       <p>You need an additional <strong>" + costDiffDisplay + "</strong>\
       in your Illini Cash account before you can release this job.</p>\
       \
-      <p>You can add credits to your account at <a href=\"https://go.illinois.edu/PrintingCredits\">go.illinois.edu/PrintingCredits</a>\
+      <p>You can add credits to your account at <a href=\"https://go.illinois.edu/IlliniCash\">go.illinois.edu/IlliniCash</a>\
       </html>",
       {
         dialogTitle: "Insufficient Credits",
