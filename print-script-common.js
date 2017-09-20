@@ -400,13 +400,21 @@ function common_printJobAfterAccountSelectionHook( inputs, actions, options )
 
   var _personalAccounts = _options.personalAccounts.names || [];
 
-  if (_options.externalAccount && _options.personalAccounts.addDefaults && common_externalAccount( inputs, actions, _options.externalAccount, _personalAccounts ))
+  if (_options.personalAccounts.addDefaults)
+  {
+    common_debugLog( inputs, actions, "adding default accounts" );
+    if (inputs.printer.isInGroup( 'Account:External' ))
+      _personalAccounts.push( 'External' );
+    _personalAccounts.push( 'Default' );
+
+    if (_options.externalAccount && common_externalAccount( inputs, actions, _options.externalAccount, _personalAccounts ))
+      return true;
+  }
+
+  if (common_checkHasBillingAccounts( inputs, actions, _personalAccounts ))
     return true;
   if (_personalAccounts.length > 0)
     actions.job.changePersonalAccountChargePriority( _personalAccounts );
-
-  if (common_hasBillingAccounts( inputs, actions, _personalAccounts ))
-    return true;
 
   if (_options.freeGroups)
     common_freeGroups( inputs, actions, _options.freeGroups );
@@ -548,24 +556,12 @@ function common_externalAccount( inputs, actions, options, personalAccounts )
   if (inputs.job.selectedSharedAccountName)
     return false;
 
-  common_debugLog( inputs, actions, "adding default accounts" );
-
   personalAccounts = personalAccounts || [];
 
   if (!inputs.printer.isInGroup( 'Account:External' ))
   {
     common_debugLog( inputs, actions, "printer not in the Account:External group" );
-
-    // No external account, so just add the default
-    personalAccounts.push( 'Default' );
     return false;
-  }
-  else
-  {
-    // We are going to do the external account logic. Add both, and remove the
-    // "Default" one later if we need to.
-    personalAccounts.push( 'External' );
-    personalAccounts.push( 'Default' );
   }
 
   for (var userGroupIdx = 0; userGroupIdx < options.enableUserGroups.length; userGroupIdx++)
@@ -585,8 +581,12 @@ function common_externalAccount( inputs, actions, options, personalAccounts )
 
   if ((defaultDisabled && defaultDisabled.value) || (!defaultDisabled && options.choiceDefault))
   {
-    common_debugLog( inputs, actions, "default account is disabled; removing" );
-    personalAccounts.pop();
+    var defaultAccountIdx = personalAccounts.indexOf( 'Default' );
+    if (defaultAccountIdx >= 0)
+    {
+      common_debugLog( inputs, actions, "default account is disabled; removing" );
+      personalAccounts.splice( defaultAccountIdx, 1 );
+    }
   }
 
   return false;
@@ -807,7 +807,7 @@ function common_notifyPrinted( inputs, actions )
  *
  * Returns true if futher processing should be stopped.
  */
-function common_hasBillingAccounts( inputs, actions, personalAccounts )
+function common_checkHasBillingAccounts( inputs, actions, personalAccounts )
 {
   // Don't run at all if we have a selected shared account or analysis is not complete.
   if (!inputs.job.isAnalysisComplete || inputs.job.selectedSharedAccountName)
