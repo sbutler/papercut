@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017 University of Illinois Board of Trustees
+ * Copyright (c) 2018 University of Illinois Board of Trustees
  * All rights reserved.
  *
  * Developed by:   Technology Services
@@ -386,7 +386,7 @@ function common_printJobAfterAccountSelectionHook( inputs, actions, options )
     freeGroups: '__AUTO__',
     checkAccountPrinterGroup: true,
     externalAccount: {
-      choiceEnabled: true,
+      choiceEnabled: false,
       choiceAlways: false,
       choiceDefault: true,
       checkBalance: true,
@@ -574,7 +574,9 @@ function common_externalAccount( inputs, actions, options, personalAccounts )
     }
   }
 
-  var defaultDisabled = null;
+  var defaultDisabled = {
+      value: true
+  };
 
   if (options.choiceEnabled)
     defaultDisabled = common_externalAccount_processChoice( inputs, actions, options );
