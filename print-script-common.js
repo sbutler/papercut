@@ -953,10 +953,11 @@ function common_checkHeartlandBalance( inputs, actions, personalAccounts )
     common_debugLog( inputs, actions, "additional credits required: " + costDiff );
     actions.client.promptOK(
       "<html>\
+      <p><font size='+2'>You can add credits to your account at \
+      <a href=\"https://go.illinois.edu/IlliniCash\">go.illinois.edu/IlliniCash</a>.</font></p>\
+      \
       <p>You need an additional <strong>" + costDiffDisplay + "</strong>\
       in your Illini Cash account before you can release this job.</p>\
-      \
-      <p>You can add credits to your account at <a href=\"https://go.illinois.edu/IlliniCash\">go.illinois.edu/IlliniCash</a>\
       </html>",
       {
         dialogTitle: "Insufficient Credits",
