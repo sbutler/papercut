@@ -93,6 +93,11 @@ function common_isClientRunning( inputs )
  */
 function common_getExternalBalances( inputs, actions )
 {
+  // Don't perform lookup for users who aren't in the external account
+  // users group.
+  if (!inputs.user.isInGroup( 'CITES-PaperCut-ExternalAccountUsers' ))
+    return null;
+
   var result = {};
   try {
     var userObj = new Packages.biz.papercut.pcng.domain.User( inputs.job.username );
