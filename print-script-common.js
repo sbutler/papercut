@@ -86,6 +86,25 @@ function common_isClientRunning( inputs )
 }
 
 /*
+ * Look at the printer's groups and determine if it has one of the
+ * billing groups (starts with "Billing:").
+ */
+function common_isPrinterBilled( inputs, actions )
+{
+  for (var printerGroupIdx = 0; printerGroupIdx < inputs.printer.groups.length; printerGroupIdx++)
+  {
+    var printerGroup = inputs.printer.groups[ printerGroupIdx ];
+
+    if (printerGroup.substr( 0, 8 ).toUpperCase() == 'BILLING:') {
+      common_debugLog( inputs, actions, "found printer billing group: " + printerGroup );
+      return true;
+    }
+  }
+
+  return false;
+}
+
+/*
  * Attempt to get the Heartland balance for the user. This code has been
  * provided by PaperCut developers.
  *
@@ -288,30 +307,6 @@ function common_mergeOptions( tgt, src )
  *   Default: true
  *
  *
- * - externalAccount.choiceEnabled: whether to allow a choice
- *   to bill to the external account or not. This will only be
- *   considered if the printer is in the "Account:External"
- *   group.
- *
- *   Default: true
- *
- *
- * - externalAccount.choiceAlways: always popup the choice dialog,
- *   even if the user has saved their previous response.
- *
- *   Default: false
- *
- *
- * - externalAccount.choiceDefault: whether the external account
- *   is the default choice or not. If true, then select the
- *   external account by default or when the PCClient is not
- *   running and the user has not made a choice already. This
- *   will only be considered if the printer is in the
- *   "Account:External" group.
- *
- *   Default: false
- *
- *
  * - externalAccount.checkBalance: whether to check the balance of the
  *   external account or not when a job is sent. If true then this will
  *   display a message to the user when they do not have enough credits. This
@@ -336,8 +331,9 @@ function common_mergeOptions( tgt, src )
  *
  * - personalAccounts.addDefaults: add the default personal account for the
  *   system. The default personal accounts enable external (Illini Cash;
- *   Heartland) and Banner billing. If you specify "false" then these accounts
- *   will not be added and the user will only be able to print using credits or
+ *   Heartland) and Banner for billing, or just the Default account for
+ *   unbilled printers. If you specify "false" then these accounts will not
+ *   be added and the user will only be able to print using credits or
  *   shared accounts.
  *
  *   Default: true
@@ -345,7 +341,7 @@ function common_mergeOptions( tgt, src )
 
 function common_printJobHook( inputs, actions, options )
 {
-  common_debugLog( inputs, actions, "running common_printJobHook (" +
+  common_debugLog( inputs, actions, "===RUNNING=== common_printJobHook (" +
     "isAnalysisComplete = " + (inputs.job.isAnalysisComplete ? "yes" : "no") +
     "; isClientRunning = " + (common_isClientRunning( inputs ) ? "yes" : "no") +
   ")" );
@@ -380,7 +376,7 @@ function common_printJobHook( inputs, actions, options )
 
 function common_printJobAfterAccountSelectionHook( inputs, actions, options )
 {
-  common_debugLog( inputs, actions, "running common_printJobAfterAccountSelectionHook (" +
+  common_debugLog( inputs, actions, "===RUNNING=== common_printJobAfterAccountSelectionHook (" +
     "isAnalysisComplete = " + (inputs.job.isAnalysisComplete ? "yes" : "no") +
     "; isClientRunning = " + (common_isClientRunning( inputs ) ? "yes" : "no") +
     "; sharedAccount = " + inputs.job.selectedSharedAccountName +
@@ -391,9 +387,6 @@ function common_printJobAfterAccountSelectionHook( inputs, actions, options )
     freeGroups: '__AUTO__',
     checkAccountPrinterGroup: true,
     externalAccount: {
-      choiceEnabled: false,
-      choiceAlways: false,
-      choiceDefault: true,
       checkBalance: true,
       enableUserGroups: [ 'CITES-PaperCut-ExternalAccountUsers' ]
     },
@@ -404,17 +397,26 @@ function common_printJobAfterAccountSelectionHook( inputs, actions, options )
   }, options);
 
   var _personalAccounts = _options.personalAccounts.names || [];
+  var _isPrinterBilled = common_isPrinterBilled( inputs, actions );
 
   if (_options.personalAccounts.addDefaults)
   {
-    common_debugLog( inputs, actions, "adding default accounts" );
-    if (inputs.printer.isInGroup( 'Account:External' ))
-      _personalAccounts.push( 'External' );
-    _personalAccounts.push( 'Default' );
-
-    if (_options.externalAccount && common_externalAccount( inputs, actions, _options.externalAccount, _personalAccounts ))
-      return true;
+    if (_isPrinterBilled)
+    {
+      common_debugLog( inputs, actions, "adding default billing accounts" );
+      if (inputs.printer.isInGroup( 'Account:External' ))
+        _personalAccounts.push( 'External' );
+      _personalAccounts.push( 'Banner' );
+    }
+    else
+    {
+      common_debugLog( inputs, actions, "adding default non-billing accounts" );
+      _personalAccounts.push( 'Default' );
+    }
   }
+
+  if (_isPrinterBilled && _options.externalAccount && common_externalAccount( inputs, actions, _options.externalAccount, _personalAccounts ))
+    return true;
 
   if (common_checkHasBillingAccounts( inputs, actions, _personalAccounts ))
     return true;
@@ -548,8 +550,7 @@ function common_discountGroups( inputs, actions, groupRates )
 }
 
 /*
- * Checks to see if the external account processing should be enabled, and optionally
- * offers some choices to the user on whether they want to use it or not.
+ * Checks to see if the external account processing should be enabled.
  *
  * This code bails early if the printer is not in the "Account:External" group or if
  * the user is not in one of the proper user groups.
@@ -579,120 +580,14 @@ function common_externalAccount( inputs, actions, options, personalAccounts )
     }
   }
 
-  var defaultDisabled = {
-      value: true
-  };
-
-  if (options.choiceEnabled)
-    defaultDisabled = common_externalAccount_processChoice( inputs, actions, options );
-
-  if ((defaultDisabled && defaultDisabled.value) || (!defaultDisabled && options.choiceDefault))
-  {
-    var defaultAccountIdx = personalAccounts.indexOf( 'Default' );
-    if (defaultAccountIdx >= 0)
-    {
-      common_debugLog( inputs, actions, "default account is disabled; removing" );
-      personalAccounts.splice( defaultAccountIdx, 1 );
+  personalAccounts.slice().forEach( function _removeAccounts(accountName, accountIdx) {
+    if (accountName == 'Default' || accountName == 'Banner') {
+      common_debugLog( inputs, actions, accountName + " account is disabled; removing" );
+      personalAccounts.splice( accountIdx, 1 );
     }
-  }
+  });
 
   return false;
-}
-
-function common_externalAccount_processChoice( inputs, actions, options )
-{
-  var defaultDisabled = null;
-  var now = Date.now();
-
-  // Try to parse the stored property and set to null if it is badly formatted
-  // or expired
-  try
-  {
-    var tmpArr = inputs.user.getProperty( 'techsvc-default-disabled' ).split( '|' );
-
-    defaultDisabled = {
-      value: tmpArr[ 0 ] && tmpArr[ 0 ] != 'false',
-      expires: parseFloat( tmpArr[ 1 ] )
-    };
-
-    if (!defaultDisabled.expires || now >= defaultDisabled.expires)
-      defaultDisabled = null;
-  }
-  catch (ex)
-  {
-    defaultDisabled = null;
-  }
-
-  if (((defaultDisabled === null) || options.choiceAlways) && common_isClientRunning( inputs ))
-  {
-    var bannerChecked = options.choiceDefault ? '' : 'checked';
-    var externalChecked = options.choiceDefault ? 'checked' : '';
-
-    var response = actions.client.promptForForm(
-      "<html>\
-      <p>You have an option for how you would like your print jobs to be billed. Please \
-      choose one of the following:</p> \
-      \
-      <table> \
-        <tr> \
-          <td><input name='personalAccount' value='external' type='radio' id='personalAccount-external' " + externalChecked + "></td> \
-          <td><strong><label for='personalAccount-external'>Bill Me Now (iCard Illini Cash)</label></strong></td> \
-        </tr> \
-        <tr> \
-          <td></td> \
-            <td>Your print jobs will be billed immediately using your iCard Illini Cash. \
-              If you do not have sufficient funds in your iCard Illini Cash \
-              then you will need to add funds before you can release your print job.</td> \
-        </tr> \
-        \
-        <tr> \
-          <td><input name='personalAccount' value='banner' type='radio' id='personalAccount-banner' " + bannerChecked + "></td> \
-          <td><strong><label for='personalAccount-banner'>Bill Me Later (Student Account)</label></strong></td> \
-        </tr> \
-        <tr> \
-          <td></td> \
-          <td>Your print jobs will appear in your student bill at the end of \
-            the month. If you print less than $5 during a semester then you \
-            will not be billed until after the semester has ended.</td> \
-        </tr> \
-        \
-        <tr> \
-          <td></td> \
-          <td><strong><label for='rememberSeconds'>Remember This Choice:</label></strong><br> \
-            <select name='rememberSeconds' id='rememberSeconds'> \
-              <option value='0'>Ask Me Each Time</option> \
-              <option value='2592000'>1 Month</option> \
-              <option value='10368000'>4 Months</option> \
-            </select></td> \
-        </tr> \
-      </table> \
-      </html>",
-      {
-        hideJobDetails: true,
-        dialogTitle: "Print Job Billing"
-      }
-    );
-
-    if (response != "TIMEOUT" && response != "CANCEL" && response.personalAccount)
-    {
-      defaultDisabled = {
-        value: response.personalAccount != 'banner',
-        expires: response.rememberSeconds * 1000 + now
-      };
-
-      if (response.rememberSeconds || options.choiceAlways)
-      {
-        var tmpStr = [
-          defaultDisabled.value ? "true" : "false",
-          defaultDisabled.expires
-        ].join( '|' );
-
-        actions.user.onCompletionSaveProperty( "techsvc-default-disabled", tmpStr, { saveWhenCancelled: true } );
-      }
-    }
-  }
-
-  return defaultDisabled;
 }
 
 /*
@@ -908,7 +803,7 @@ function common_siteRestrictUsers( inputs, actions, options )
  * - client is not running
  * - a shared account is selected
  * - the user does not have the External account enabled
- * - the user does have the Default account enabled
+ * - the user does have the Default or Banner account enabled
  * - the user has sufficient credit in one of their other personal account
  * - the user has sufficient credit in their heartland account
  */
@@ -923,9 +818,9 @@ function common_checkHeartlandBalance( inputs, actions, personalAccounts )
 
   // Don't run if...
   // 1. We don't have the External account. Heartland wouldn't help anyway.
-  // 2. We do have the Default account. Heartland may be consulted, but we have a declining balance.
+  // 2. We do have the Default or Banner account. Heartland may be consulted, but we have a declining balance.
   common_debugLog( inputs, actions, "check balance personal accounts: " + personalAccounts.join( "; " ) );
-  if ((personalAccounts.indexOf( 'External' ) == -1) || (personalAccounts.indexOf( 'Default' ) != -1))
+  if ((personalAccounts.indexOf( 'External' ) == -1) || (personalAccounts.indexOf( 'Default' ) != -1) || (personalAccounts.indexOf( 'Banner' ) != -1))
     return false;
 
   var balance = 0;
